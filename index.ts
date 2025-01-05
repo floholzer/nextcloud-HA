@@ -1,57 +1,119 @@
-import * as pulumi from "@pulumi/pulumi";
-import * as azure from "@pulumi/azure-native";
+const pulumi = require("@pulumi/pulumi");
+const azure = require("@pulumi/azure-native");
+const azure_native = require("@pulumi/azure-native");
 
 // Configs
 const loadBalancerName = "nextcloud-lb";
 const FE_IP_NAME = "FrontendIPConfig";
 const BE_POOLS_NAME = "BackEndPools";
+const resourceGroupName = "clco_project2";
+const location = "northeurope";
+const size = "Standard_B1s";
+const adminUsername = "azureuser";
+const adminPassword = "Password1234!";
+const diskSize = 1024;
+const ownerSubscriptionID = "baf14dc0-aa90-480a-a428-038a6943c5b3";
+const teamMembers = [
+    {
+        name: "Holzer",
+        email: "wi22b090@technikum-wien.at",
+    },
+    {
+        name: "Dziekan",
+        email: "wi22b004@technikum-wien.at",
+    }
+];
 
 // 1. Ressourcengruppe erstellen
-const resourceGroup = new azure.resources.ResourceGroup("nextcloud-rg");
-
+const resourceGroup = new azure_native.resources.ResourceGroup(resourceGroupName, {
+    location: location,
+});
 // 2. Storage-Konto erstellen
-const storageAccount = new azure.storage.StorageAccount("nextcloudstorage", {
+const storageAccount = new azure_native.storage.StorageAccount("nextcloudstorage", {
     resourceGroupName: resourceGroup.name,
-    sku: {
-        name: "Standard_LRS",
-    },
-    kind: "StorageV2",
     location: resourceGroup.location,
+    sku: {name: azure_native.storage.SkuName.Standard_LRS},
+    kind: azure_native.storage.Kind.StorageV2,
 });
 
 // 3. Dateifreigabe erstellen
-const fileShare = new azure.storage.FileShare("nextcloudshare", {
+const fileShare = new azure_native.storage.FileShare("nextcloudshare", {
     resourceGroupName: resourceGroup.name,
     accountName: storageAccount.name,
     shareName: "nextcloud",
 });
 
 // 4. Speicheraccount-Schlüssel abrufen
-const storageAccountKeys = pulumi.all([resourceGroup.name, storageAccount.name]).apply(([rgName, accountName]) =>
-    azure.storage.listStorageAccountKeys({resourceGroupName: rgName, accountName: accountName})
-);
+const storageAccountKeys = pulumi
+    .all([resourceGroup.name, storageAccount.name])
+    .apply(([rgName, accountName]: [string, string]) =>
+        azure.storage.listStorageAccountKeys({
+            resourceGroupName: rgName,
+            accountName: accountName,
+        })
+    );
 const primaryStorageKey = storageAccountKeys.keys[0].value;
 
-// 5. Virtuelles Netzwerk und Subnetz erstellen
-const virtualNetwork = new azure.network.VirtualNetwork("nextcloud-vnet", {
+// 5. Virtuelles Netzwerk erstellen
+const vnet = new azure_native.network.VirtualNetwork("nextcloud-vnet", {
     resourceGroupName: resourceGroup.name,
+    location: resourceGroup.location,
     addressSpace: {addressPrefixes: ["10.0.0.0/16"]},
 });
 
-const subnet = new azure.network.Subnet("nextcloud-subnet", {
+// Network Security Group (NSG) erstellen
+const nsg = new azure_native.network.NetworkSecurityGroup("nextcloud-nsg", {
     resourceGroupName: resourceGroup.name,
-    virtualNetworkName: virtualNetwork.name,
-    addressPrefix: "10.0.1.0/24",
+    location: resourceGroup.location,
+});
+
+// Subnetz erstellen und NSG direkt verknüpfen
+const subnet = new azure_native.network.Subnet("nextcloud-subnet", {
+    resourceGroupName: resourceGroup.name,
+    virtualNetworkName: vnet.name,
+    addressPrefix: "10.0.1.0/24", // Erstes Subnetz
+    networkSecurityGroup: {
+        id: nsg.id, // Verknüpfe das NSG direkt
+    },
+});
+
+// Inbound-Regel für Port 80 in der NSG erstellen
+const allowHttpRule = new azure_native.network.SecurityRule("allow-http", {
+    resourceGroupName: resourceGroup.name,
+    networkSecurityGroupName: nsg.name,
+    priority: 100,
+    direction: azure_native.network.SecurityRuleDirection.Inbound,
+    access: azure_native.network.SecurityRuleAccess.Allow,
+    protocol: "*",
+    sourcePortRange: "*",
+    destinationPortRange: "80",
+    sourceAddressPrefix: "*",
+    destinationAddressPrefix: "*",
+});
+
+// Default-Regel zum Verweigern von allem anderen erstellen
+const denyAllRule = new azure_native.network.SecurityRule("deny-all", {
+    resourceGroupName: resourceGroup.name,
+    networkSecurityGroupName: nsg.name,
+    priority: 200,
+    direction: "Inbound",
+    access: "Deny",
+    protocol: "*",
+    sourcePortRange: "*",
+    destinationPortRange: "*",
+    sourceAddressPrefix: "*",
+    destinationAddressPrefix: "*",
 });
 
 // 6. Öffentliche IP-Adresse und Load Balancer erstellen
-const publicIp = new azure.network.PublicIPAddress("nextcloud-pip", {
+const publicIp = new azure_native.network.PublicIPAddress("nextcloud-pip", {
     resourceGroupName: resourceGroup.name,
-    publicIPAllocationMethod: "Static",
-    sku: {name: "Standard"},
+    location: resourceGroup.location,
+    publicIPAllocationMethod: azure_native.network.IpAllocationMethod.Static,
+    sku: {name: azure_native.network.PublicIPAddressSkuName.Standard},
 });
 
-const loadBalancer = new azure.network.LoadBalancer(loadBalancerName, {
+const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     resourceGroupName: resourceGroup.name,
     location: resourceGroup.location,
     sku: {
@@ -119,6 +181,16 @@ const vmss = new azure.compute.VirtualMachineScaleSet("nextcloud-vmss", {
                 createOption: "FromImage",
                 managedDisk: {storageAccountType: "Standard_LRS"},
             },
+            dataDisks: [
+                {
+                    lun: 0,
+                    createOption: "Empty",
+                    diskSizeGB: 1024,
+                    managedDisk: {
+                        storageAccountType: "Standard_LRS",
+                    },
+                },
+            ],
         },
         networkProfile: {
             networkInterfaceConfigurations: [{
@@ -127,7 +199,9 @@ const vmss = new azure.compute.VirtualMachineScaleSet("nextcloud-vmss", {
                 ipConfigurations: [{
                     name: "nextcloud-ipconfig",
                     subnet: {id: subnet.id},
-                    loadBalancerBackendAddressPools: [{id: backendAddressPool.id}],
+                    loadBalancerBackendAddressPools: [{
+                        id: pulumi.interpolate`${loadBalancer.id}/backendAddressPools/${BE_POOLS_NAME}`,
+                    }],
                 }],
             }],
         },

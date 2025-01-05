@@ -1,2 +1,2 @@
 config:
-  azure-native:location: WestUS2
+  azure-native:location: northeurope
