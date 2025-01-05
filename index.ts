@@ -1,5 +1,4 @@
 const pulumi = require("@pulumi/pulumi");
-const azure = require("@pulumi/azure-native");
 const azure_native = require("@pulumi/azure-native");
 
 // Configs
@@ -8,21 +7,7 @@ const FE_IP_NAME = "FrontendIPConfig";
 const BE_POOLS_NAME = "BackEndPools";
 const resourceGroupName = "clco_project2";
 const location = "northeurope";
-const size = "Standard_B1s";
-const adminUsername = "azureuser";
-const adminPassword = "Password1234!";
-const diskSize = 1024;
 const ownerSubscriptionID = "baf14dc0-aa90-480a-a428-038a6943c5b3";
-const teamMembers = [
-    {
-        name: "Holzer",
-        email: "wi22b090@technikum-wien.at",
-    },
-    {
-        name: "Dziekan",
-        email: "wi22b004@technikum-wien.at",
-    }
-];
 
 // 1. Ressourcengruppe erstellen
 const resourceGroup = new azure_native.resources.ResourceGroup(resourceGroupName, {
@@ -42,17 +27,17 @@ const fileShare = new azure_native.storage.FileShare("nextcloudshare", {
     accountName: storageAccount.name,
     shareName: "nextcloud",
 });
-
 // 4. Speicheraccount-Schlüssel abrufen
 const storageAccountKeys = pulumi
     .all([resourceGroup.name, storageAccount.name])
     .apply(([rgName, accountName]: [string, string]) =>
-        azure.storage.listStorageAccountKeys({
+        azure_native.storage.listStorageAccountKeys({
             resourceGroupName: rgName,
             accountName: accountName,
         })
     );
 const primaryStorageKey = storageAccountKeys.keys[0].value;
+
 
 // 5. Virtuelles Netzwerk erstellen
 const vnet = new azure_native.network.VirtualNetwork("nextcloud-vnet", {
@@ -86,7 +71,7 @@ const allowHttpRule = new azure_native.network.SecurityRule("allow-http", {
     access: azure_native.network.SecurityRuleAccess.Allow,
     protocol: "*",
     sourcePortRange: "*",
-    destinationPortRange: "80",
+    destinationPortRange: "8080",
     sourceAddressPrefix: "*",
     destinationAddressPrefix: "*",
 });
@@ -114,6 +99,7 @@ const publicIp = new azure_native.network.PublicIPAddress("nextcloud-pip", {
 });
 
 const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
+    loadBalancerName: loadBalancerName,
     resourceGroupName: resourceGroup.name,
     location: resourceGroup.location,
     sku: {
@@ -132,7 +118,7 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
         numberOfProbes: 2,
         port: 80,
         probeThreshold: 1,
-        protocol: azure.network.ProbeProtocol.Http,
+        protocol: azure_native.network.ProbeProtocol.Http,
         requestPath: "/",
     }],
     loadBalancingRules: [{
@@ -140,8 +126,8 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
         enableFloatingIP: false,
         frontendPort: 80,
         idleTimeoutInMinutes: 5,
-        loadDistribution: azure.network.LoadDistribution.Default,
-        protocol: azure.network.TransportProtocol.Tcp,
+        loadDistribution: azure_native.network.LoadDistribution.Default,
+        protocol: azure_native.network.TransportProtocol.Tcp,
         name: "rulelb",
         backendAddressPool: {
             id: pulumi.interpolate`/subscriptions/${ownerSubscriptionID}/resourceGroups/${resourceGroup.name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/backendAddressPools/${BE_POOLS_NAME}`,
@@ -155,26 +141,50 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     }],
 });
 
+const init_script = pulumi.interpolate(`#!/bin/bash
+STORAGE_ACCOUNT_NAME=${storageAccount.name}
+STORAGE_ACCOUNT_KEY=${primaryStorageKey}
+FILE_SHARE_NAME=${fileShare.name}
+MOUNT_POINT=/mnt/nextcloud
+
+sudo apt-get update
+sudo apt-get install -y cifs-utils docker-ce docker-ce-cli containerd.io
+
+sudo mkdir -p $MOUNT_POINT
+
+echo "username=$STORAGE_ACCOUNT_NAME" | sudo tee /etc/smbcredentials
+echo "password=$STORAGE_ACCOUNT_KEY" | sudo tee -a /etc/smbcredentials
+sudo chmod 600 /etc/smbcredentials
+
+sudo mount -t cifs //$STORAGE_ACCOUNT_NAME.file.core.windows.net/$FILE_SHARE_NAME $MOUNT_POINT -o credentials=/etc/smbcredentials,serverino
+
+echo "//$STORAGE_ACCOUNT_NAME.file.core.windows.net/$FILE_SHARE_NAME $MOUNT_POINT cifs credentials=/etc/smbcredentials,serverino 0 0" | sudo tee -a /etc/fstab
+`);
+
 // 7. Virtual Machine Scale Set definieren
-const vmss = new azure.compute.VirtualMachineScaleSet("nextcloud-vmss", {
+const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
+    location: resourceGroup.location,
     resourceGroupName: resourceGroup.name,
     sku: {
         name: "Standard_DS1_v2",
         tier: "Standard",
-        capacity: 2,
+        capacity: 3,
     },
-    upgradePolicy: {mode: "Automatic"},
+    upgradePolicy: {
+        mode: "Automatic"
+    },
     virtualMachineProfile: {
         osProfile: {
-            computerNamePrefix: "nextcloudvm",
+            computerNamePrefix: "nextcloudvm-",
             adminUsername: "adminuser",
             adminPassword: "Password1234!",
+            customData: Buffer.from(init_script).toString("base64"),
         },
         storageProfile: {
             imageReference: {
                 publisher: "Canonical",
-                offer: "UbuntuServer",
-                sku: "18.04-LTS",
+                offer: "ubuntu-24_04-lts",
+                sku: "server",
                 version: "latest",
             },
             osDisk: {
@@ -205,28 +215,13 @@ const vmss = new azure.compute.VirtualMachineScaleSet("nextcloud-vmss", {
                 }],
             }],
         },
-        // Benutzerdefinierte Skripterweiterung für die Installation von Nextcloud und das Mounten der Dateifreigabe
-        extensionProfile: {
-            extensions: [{
-                name: "nextcloud-setup-script",
-                properties: {
-                    publisher: "Microsoft.Azure.Extensions",
-                    type: "CustomScript",
-                    typeHandlerVersion: "2.0",
-                    autoUpgradeMinorVersion: true,
-                    settings: {
-                        fileUris: ["https://example.com/setup-nextcloud.sh"], // URL zum Setup-Skript
-                        commandToExecute: pulumi.interpolate`bash setup-nextcloud.sh ${storageAccount.name} ${primaryStorageKey}`,
-                    },
-                },
-            }],
-        },
     },
     overprovision: true,
 });
 
 // 8. Automatische Skalierungsregeln konfigurieren
-const autoscale = new azure.monitor.AutoscaleSetting("nextcloud-autoscale", {
+const autoscale = new azure_native.insights.AutoscaleSetting("nextcloud-autoscale", {
+    location: resourceGroup.location,
     resourceGroupName: resourceGroup.name,
     targetResourceUri: vmss.id,
     profiles: [{
