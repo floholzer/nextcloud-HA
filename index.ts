@@ -143,33 +143,7 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     }],
 });
 
-const init_script = pulumi.interpolate(`#!/bin/bash
-STORAGE_ACCOUNT_NAME=${storageAccount.name}
-STORAGE_ACCOUNT_KEY=${primaryStorageKey}
-FILE_SHARE_NAME=${fileShare.name}
-MOUNT_POINT=/mnt/nextcloud
-
-#### Install Docker ####
-sudo apt-get update
-sudo apt install apt-transport-https ca-certificates curl software-properties-common
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
-apt-cache policy docker-ce
-sudo apt install docker-ce
-
-
-#### Mount Azure File Share ####
-
-sudo mkdir -p /mnt/nextcloud
-
-echo "username=${storageAccount.name}" | sudo tee /etc/smbcredentials
-echo "password=${primaryStorageKey}" | sudo tee -a /etc/smbcredentials
-sudo chmod 600 /etc/smbcredentials
-
-sudo mount -t cifs //${storageAccount.name}.file.core.windows.net/${fileShare.name} /mnt/nextcloud -o credentials=/etc/smbcredentials,serverino
-
-echo "//${storageAccount.name}.file.core.windows.net/${fileShare.name} /mnt/nextcloud cifs credentials=/etc/smbcredentials,serverino 0 0" | sudo tee -a /etc/fstab
-`);
+const init_script = "sudo apt-get update && sudo apt install -y apt-transport-https ca-certificates curl software-properties-common && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add - && sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\" && apt-cache policy docker-ce && sudo apt install -y docker-ce && sudo mkdir -p /mnt/nextcloud && [ ! -d \"/etc/smbcredentials\" ] && sudo mkdir /etc/smbcredentials && [ ! -f \"/etc/smbcredentials/"+storageAccount.name+".cred\" ] && sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/' + "+storageAccount.name+".cred' && 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred' && sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred && sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab' && sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30";
 
 // 7. Virtual Machine Scale Set definieren
 const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
