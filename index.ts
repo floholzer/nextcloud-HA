@@ -25,6 +25,7 @@ const storageAccount = new azure_native.storage.StorageAccount("nextcloudstorage
 const fileShare = new azure_native.storage.FileShare("nextcloudshare", {
     resourceGroupName: resourceGroup.name,
     accountName: storageAccount.name,
+    enabledProtocols: azure_native.storage.EnabledProtocols.SMB,
     shareName: "nextcloud",
 });
 // 4. Speicheraccount-Schlüssel abrufen
@@ -60,6 +61,7 @@ const subnet = new azure_native.network.Subnet("nextcloud-subnet", {
     networkSecurityGroup: {
         id: nsg.id, // Verknüpfe das NSG direkt
     },
+    dependsOn: [vnet],
 });
 
 // Inbound-Regel für Port 80 in der NSG erstellen
@@ -71,7 +73,7 @@ const allowHttpRule = new azure_native.network.SecurityRule("allow-http", {
     access: azure_native.network.SecurityRuleAccess.Allow,
     protocol: "*",
     sourcePortRange: "*",
-    destinationPortRange: "8080",
+    destinationPortRanges: ["80","8080","22","3389"],
     sourceAddressPrefix: "*",
     destinationAddressPrefix: "*",
 });
@@ -147,18 +149,26 @@ STORAGE_ACCOUNT_KEY=${primaryStorageKey}
 FILE_SHARE_NAME=${fileShare.name}
 MOUNT_POINT=/mnt/nextcloud
 
+#### Install Docker ####
 sudo apt-get update
-sudo apt-get install -y cifs-utils docker-ce docker-ce-cli containerd.io
+sudo apt install apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+apt-cache policy docker-ce
+sudo apt install docker-ce
 
-sudo mkdir -p $MOUNT_POINT
 
-echo "username=$STORAGE_ACCOUNT_NAME" | sudo tee /etc/smbcredentials
-echo "password=$STORAGE_ACCOUNT_KEY" | sudo tee -a /etc/smbcredentials
+#### Mount Azure File Share ####
+
+sudo mkdir -p /mnt/nextcloud
+
+echo "username=${storageAccount.name}" | sudo tee /etc/smbcredentials
+echo "password=${primaryStorageKey}" | sudo tee -a /etc/smbcredentials
 sudo chmod 600 /etc/smbcredentials
 
-sudo mount -t cifs //$STORAGE_ACCOUNT_NAME.file.core.windows.net/$FILE_SHARE_NAME $MOUNT_POINT -o credentials=/etc/smbcredentials,serverino
+sudo mount -t cifs //${storageAccount.name}.file.core.windows.net/${fileShare.name} /mnt/nextcloud -o credentials=/etc/smbcredentials,serverino
 
-echo "//$STORAGE_ACCOUNT_NAME.file.core.windows.net/$FILE_SHARE_NAME $MOUNT_POINT cifs credentials=/etc/smbcredentials,serverino 0 0" | sudo tee -a /etc/fstab
+echo "//${storageAccount.name}.file.core.windows.net/${fileShare.name} /mnt/nextcloud cifs credentials=/etc/smbcredentials,serverino 0 0" | sudo tee -a /etc/fstab
 `);
 
 // 7. Virtual Machine Scale Set definieren
@@ -217,6 +227,7 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
         },
     },
     overprovision: true,
+    dependsOn: [storageAccount, fileShare, subnet],
 });
 
 // 8. Automatische Skalierungsregeln konfigurieren
