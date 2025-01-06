@@ -70,11 +70,11 @@ const allowHttpRule = new azure_native.network.SecurityRule("allow-http", {
     resourceGroupName: resourceGroup.name,
     networkSecurityGroupName: nsg.name,
     priority: 100,
-    direction: azure_native.network.SecurityRuleDirection.Inbound,
-    access: azure_native.network.SecurityRuleAccess.Allow,
+    direction: "Inbound",
+    access: "Allow",
     protocol: "*",
     sourcePortRange: "*",
-    destinationPortRanges: ["80","8080","22","3389"],
+    destinationPortRanges: ["80","22","3389"],
     sourceAddressPrefix: "*",
     destinationAddressPrefix: "*",
 });
@@ -97,8 +97,10 @@ const denyAllRule = new azure_native.network.SecurityRule("deny-all", {
 const publicIp = new azure_native.network.PublicIPAddress("nextcloud-pip", {
     resourceGroupName: resourceGroup.name,
     location: resourceGroup.location,
-    publicIPAllocationMethod: azure_native.network.IpAllocationMethod.Static,
-    sku: {name: azure_native.network.PublicIPAddressSkuName.Standard},
+    publicIPAllocationMethod: "Static",
+    sku: {
+        name: "Standard",
+    },
 });
 
 const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
@@ -121,16 +123,16 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
         numberOfProbes: 2,
         port: 80,
         probeThreshold: 1,
-        protocol: azure_native.network.ProbeProtocol.Http,
+        protocol: "Http",
         requestPath: "/",
     }],
     loadBalancingRules: [{
         backendPort: 80,
         enableFloatingIP: false,
         frontendPort: 80,
-        idleTimeoutInMinutes: 5,
-        loadDistribution: azure_native.network.LoadDistribution.Default,
-        protocol: azure_native.network.TransportProtocol.Tcp,
+        idleTimeoutInMinutes: 15,
+        loadDistribution: "Default",
+        protocol: "Tcp",
         name: "rulelb",
         backendAddressPool: {
             id: pulumi.interpolate`/subscriptions/${ownerSubscriptionID}/resourceGroups/${resourceGroup.name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/backendAddressPools/${BE_POOLS_NAME}`,
@@ -150,29 +152,28 @@ const init_script = "#!/bin/bash\n" +
     "sudo apt install -y apt-transport-https ca-certificates curl software-properties-common\n" +
     "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -\n" +
     "sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"\n" +
-    "apt-cache policy docker-ce\n" +
     "sudo apt install -y docker-ce\n" +
-    "# Mount Azure FileShare\n" +
     "sudo mkdir /mnt/nextcloud\n" +
+    "# Run Nextcloud Container\n" +
+    "sudo docker run --init --restart always -d -p 80:80 -e TRUSTED_PROXIES='"+publicIp.ipAddress+"' -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache\n"+
+    "# Mount Azure FileShare\n" +
     "if [ ! -d \"/etc/smbcredentials\" ]; then\n" +
     "sudo mkdir /etc/smbcredentials\n" +
     "fi\n" +
     "if [ ! -f \"/etc/smbcredentials/"+storageAccount.name+".cred\" ]; then\n" +
-    "sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
-    "sudo bash -c 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
+    "   sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
+    "   sudo bash -c 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
     "fi\n" +
     "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred\n" +
     "sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab'\n" +
-    "sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\n" +
-    "# Run Nextcloud Container\n" +
-    "sudo docker run --name nextcloud -d -p 8080:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:latest";
+    "sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\n";
 
 // 7. Virtual Machine Scale Set definieren
 const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
     location: resourceGroup.location,
     resourceGroupName: resourceGroup.name,
     sku: {
-        name: "Standard_DS1_v2",
+        name: "Standard_DS2_v2",
         tier: "Standard",
         capacity: 1,
     },
@@ -219,10 +220,10 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
                         id: pulumi.interpolate`${loadBalancer.id}/backendAddressPools/${BE_POOLS_NAME}`,
                     }],
                 }],
+                networkSecurityGroup: {id: nsg.id},
             }],
         },
     },
-    overprovision: true,
 });
 
 // 8. Automatische Skalierungsregeln konfigurieren
@@ -281,4 +282,3 @@ const autoscale = new azure_native.insights.AutoscaleSetting("nextcloud-autoscal
 
 // 9. Öffentliche IP-Adresse des Load Balancers exportieren
 export const publicIpAddress = publicIp.ipAddress;
-export const debugBackendAddressPool = ownerSubscriptionID;
