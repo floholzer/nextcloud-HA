@@ -161,13 +161,8 @@ const init_script = "#!/bin/bash\n" +
     "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred\n" +
     "sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab'\n" +
     "sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\n" +
-    "# Start Nextcloud\n" +
-    "docker run --name nextcloud -d -p 8080:80 \\\n" +
-    "-v /mnt/nextcloud/nextcloud:/var/www/html \\\n" +
-    "-v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps \\\n" +
-    "-v /mnt/nextcloud/config:/var/www/html/config \\\n" +
-    "-v /mnt/nextcloud/data:/var/www/html/data \\\n" +
-    "nextcloud:latest";
+    "# Run Nextcloud Container\n" +
+    "sudo docker run --name nextcloud -d -p 8080:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:latest";
 
 // 7. Virtual Machine Scale Set definieren
 const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
