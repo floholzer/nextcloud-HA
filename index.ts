@@ -1,4 +1,5 @@
 const pulumi = require("@pulumi/pulumi");
+const azure = require("@pulumi/azure-native");
 const azure_native = require("@pulumi/azure-native");
 
 // Configs
@@ -6,7 +7,9 @@ const loadBalancerName = "nextcloud-lb";
 const FE_IP_NAME = "FrontendIPConfig";
 const BE_POOLS_NAME = "BackEndPools";
 const location = "northeurope";
-const ownerSubscriptionID = "baf14dc0-aa90-480a-a428-038a6943c5b3";
+const ownerSubscriptionID = azure.config.subscriptionId;
+
+console.log("Loaded Subscription ID:", ownerSubscriptionID);
 
 // 1. Ressourcengruppe erstellen
 const resourceGroup = new azure_native.resources.ResourceGroup("nextcloud-rg", {
@@ -278,3 +281,4 @@ const autoscale = new azure_native.insights.AutoscaleSetting("nextcloud-autoscal
 
 // 9. Öffentliche IP-Adresse des Load Balancers exportieren
 export const publicIpAddress = publicIp.ipAddress;
+export const debugBackendAddressPool = ownerSubscriptionID;
