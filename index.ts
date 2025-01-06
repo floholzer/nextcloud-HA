@@ -5,12 +5,11 @@ const azure_native = require("@pulumi/azure-native");
 const loadBalancerName = "nextcloud-lb";
 const FE_IP_NAME = "FrontendIPConfig";
 const BE_POOLS_NAME = "BackEndPools";
-const resourceGroupName = "clco_project2";
 const location = "northeurope";
 const ownerSubscriptionID = "baf14dc0-aa90-480a-a428-038a6943c5b3";
 
 // 1. Ressourcengruppe erstellen
-const resourceGroup = new azure_native.resources.ResourceGroup(resourceGroupName, {
+const resourceGroup = new azure_native.resources.ResourceGroup("nextcloud-rg", {
     location: location,
 });
 // 2. Storage-Konto erstellen
@@ -61,7 +60,6 @@ const subnet = new azure_native.network.Subnet("nextcloud-subnet", {
     networkSecurityGroup: {
         id: nsg.id, // Verknüpfe das NSG direkt
     },
-    dependsOn: [vnet],
 });
 
 // Inbound-Regel für Port 80 in der NSG erstellen
@@ -143,7 +141,30 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     }],
 });
 
-const init_script = "sudo apt-get update && sudo apt install -y apt-transport-https ca-certificates curl software-properties-common && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add - && sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\" && apt-cache policy docker-ce && sudo apt install -y docker-ce && sudo mkdir -p /mnt/nextcloud && [ ! -d \"/etc/smbcredentials\" ] && sudo mkdir /etc/smbcredentials && [ ! -f \"/etc/smbcredentials/"+storageAccount.name+".cred\" ] && sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/' + "+storageAccount.name+".cred' && 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred' && sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred && sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab' && sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30";
+const init_script = pulumi.interpolate`#!/bin/bash
+# Install Dependencies
+sudo apt-get update
+sudo apt install apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+apt-cache policy docker-ce
+sudo apt install docker-ce
+
+
+# Mount Azure FileShare
+
+sudo mkdir /mnt/nextcloud
+if [ ! -d "/etc/smbcredentials" ]; then
+sudo mkdir /etc/smbcredentials
+fi
+if [ ! -f "/etc/smbcredentials/${storageAccount.name}.cred" ]; then
+    sudo bash -c 'echo "username=${storageAccount.name}" >> /etc/smbcredentials/${storageAccount.name}.cred'
+    sudo bash -c 'echo "password=${primaryStorageKey}" >> /etc/smbcredentials/${storageAccount.name}.cred'
+fi
+sudo chmod 600 /etc/smbcredentials/${storageAccount.name}.cred
+
+sudo bash -c 'echo "//${storageAccount.name}.file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/${storageAccount.name}.cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30" >> /etc/fstab'
+sudo mount -t cifs //${storageAccount.name}.file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/${storageAccount.name}.cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30`;
 
 // 7. Virtual Machine Scale Set definieren
 const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
@@ -152,7 +173,7 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
     sku: {
         name: "Standard_DS1_v2",
         tier: "Standard",
-        capacity: 3,
+        capacity: 1,
     },
     upgradePolicy: {
         mode: "Automatic"
@@ -201,7 +222,6 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
         },
     },
     overprovision: true,
-    dependsOn: [storageAccount, fileShare, subnet],
 });
 
 // 8. Automatische Skalierungsregeln konfigurieren
@@ -260,3 +280,4 @@ const autoscale = new azure_native.insights.AutoscaleSetting("nextcloud-autoscal
 
 // 9. Öffentliche IP-Adresse des Load Balancers exportieren
 export const publicIpAddress = publicIp.ipAddress;
+export const base64 = Buffer.from("Test").toString("base64");
