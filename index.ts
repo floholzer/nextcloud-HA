@@ -141,30 +141,26 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     }],
 });
 
-const init_script = pulumi.interpolate`#!/bin/bash
-# Install Dependencies
-sudo apt-get update
-sudo apt install apt-transport-https ca-certificates curl software-properties-common
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
-apt-cache policy docker-ce
-sudo apt install docker-ce
-
-
-# Mount Azure FileShare
-
-sudo mkdir /mnt/nextcloud
-if [ ! -d "/etc/smbcredentials" ]; then
-sudo mkdir /etc/smbcredentials
-fi
-if [ ! -f "/etc/smbcredentials/${storageAccount.name}.cred" ]; then
-    sudo bash -c 'echo "username=${storageAccount.name}" >> /etc/smbcredentials/${storageAccount.name}.cred'
-    sudo bash -c 'echo "password=${primaryStorageKey}" >> /etc/smbcredentials/${storageAccount.name}.cred'
-fi
-sudo chmod 600 /etc/smbcredentials/${storageAccount.name}.cred
-
-sudo bash -c 'echo "//${storageAccount.name}.file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/${storageAccount.name}.cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30" >> /etc/fstab'
-sudo mount -t cifs //${storageAccount.name}.file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/${storageAccount.name}.cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30`;
+const init_script = "#!/bin/bash\n" +
+    "# Install Dependencies\n" +
+    "sudo apt-get update\n" +
+    "sudo apt install -y apt-transport-https ca-certificates curl software-properties-common\n" +
+    "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -\n" +
+    "sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"\n" +
+    "apt-cache policy docker-ce\n" +
+    "sudo apt install -y docker-ce\n" +
+    "# Mount Azure FileShare\n" +
+    "sudo mkdir /mnt/nextcloud\n" +
+    "if [ ! -d \"/etc/smbcredentials\" ]; then\n" +
+    "sudo mkdir /etc/smbcredentials\n" +
+    "fi\n" +
+    "if [ ! -f \"/etc/smbcredentials/"+storageAccount.name+".cred\" ]; then\n" +
+    "sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
+    "sudo bash -c 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
+    "fi\n" +
+    "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred\n" +
+    "sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab'\n" +
+    "sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30";
 
 // 7. Virtual Machine Scale Set definieren
 const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
@@ -183,28 +179,7 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
             computerNamePrefix: "nextcloudvm-",
             adminUsername: "adminuser",
             adminPassword: "Password1234!",
-            customData: Buffer.from(
-                "#!/bin/bash\n" +
-                "# Install Dependencies\n" +
-                "sudo apt-get update\n" +
-                "sudo apt install apt-transport-https ca-certificates curl software-properties-common\n" +
-                "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -\n" +
-                "sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"\n" +
-                "apt-cache policy docker-ce\n" +
-                "sudo apt install -y docker-ce\n" +
-                "# Mount Azure FileShare\n" +
-                "sudo mkdir /mnt/nextcloud\n" +
-                "if [ ! -d \"/etc/smbcredentials\" ]; then\n" +
-                "sudo mkdir /etc/smbcredentials\n" +
-                "fi\n" +
-                "if [ ! -f \"/etc/smbcredentials/"+storageAccount.name+".cred\" ]; then\n" +
-                "sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
-                "sudo bash -c 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
-                "fi\n" +
-                "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred\n" +
-                "sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab'\n" +
-                "sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30"
-            ).toString("base64"),
+            customData: Buffer.from(init_script).toString("base64"),
         },
         storageProfile: {
             imageReference: {
