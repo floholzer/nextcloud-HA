@@ -122,8 +122,7 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
         numberOfProbes: 2,
         port: 80,
         probeThreshold: 1,
-        protocol: "Http",
-        requestPath: "/",
+        protocol: "Tcp",
     }],
     loadBalancingRules: [{
         backendPort: 80,
