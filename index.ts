@@ -1,5 +1,4 @@
 const pulumi = require("@pulumi/pulumi");
-const azure = require("@pulumi/azure-native");
 const azure_native = require("@pulumi/azure-native");
 
 // Configs
@@ -7,7 +6,7 @@ const loadBalancerName = "nextcloud-lb";
 const FE_IP_NAME = "FrontendIPConfig";
 const BE_POOLS_NAME = "BackEndPools";
 const location = "northeurope";
-const ownerSubscriptionID = azure.config.subscriptionId;
+const ownerSubscriptionID = azure_native.config.subscriptionId;
 
 console.log("Loaded Subscription ID:", ownerSubscriptionID);
 
@@ -155,15 +154,11 @@ const init_script = "#!/bin/bash\n" +
     "sudo apt install -y docker-ce\n" +
     "sudo mkdir /mnt/nextcloud\n" +
     "# Run Nextcloud Container\n" +
-    "sudo docker run --init --restart always -d -p 80:80 -e TRUSTED_PROXIES='"+publicIp.ipAddress+"' -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache\n"+
+    "sudo docker run --init --restart always -d -p 80:80 -e TRUSTED_PROXIES='168.63.129.16' -e APACHE_DISABLE_REWRITE_IP=1 -e OVERWRITECLIURL='https://azure-nc-ha.ipv64.net' -e OVERWRITEPROTOCOL='https' -e FORWARDED_FOR_HEADERS='HTTP_X_FORWARDED_FOR' -e OVERWRITEHOST='azure-nc-ha.ipv64.net' -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache\n"+
     "# Mount Azure FileShare\n" +
-    "if [ ! -d \"/etc/smbcredentials\" ]; then\n" +
     "sudo mkdir /etc/smbcredentials\n" +
-    "fi\n" +
-    "if [ ! -f \"/etc/smbcredentials/"+storageAccount.name+".cred\" ]; then\n" +
-    "   sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
-    "   sudo bash -c 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
-    "fi\n" +
+    "sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
+    "sudo bash -c 'echo \"password="+primaryStorageKey+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
     "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name+".cred\n" +
     "sudo bash -c 'echo \"//"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab'\n" +
     "sudo mount -t cifs //"+storageAccount.name+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\n";
@@ -282,3 +277,4 @@ const autoscale = new azure_native.insights.AutoscaleSetting("nextcloud-autoscal
 
 // 9. Öffentliche IP-Adresse des Load Balancers exportieren
 export const publicIpAddress = publicIp.ipAddress;
+export const base64InitScript = Buffer.from(init_script).toString("base64");
