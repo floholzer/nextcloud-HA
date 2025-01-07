@@ -116,6 +116,14 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     backendAddressPools: [{
         name: BE_POOLS_NAME,
     }],
+    probes: [{
+        intervalInSeconds: 15,
+        name: "probe-lb",
+        numberOfProbes: 2,
+        port: 80,
+        probeThreshold: 1,
+        protocol: "Tcp",
+    }],
     loadBalancingRules: [{
         backendPort: 80,
         enableFloatingIP: false,
@@ -129,6 +137,9 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
         },
         frontendIPConfiguration: {
             id: pulumi.interpolate`/subscriptions/${ownerSubscriptionID}/resourceGroups/${resourceGroup.name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/frontendIPConfigurations/${FE_IP_NAME}`,
+        },
+        probe: {
+            id: pulumi.interpolate`/subscriptions/${ownerSubscriptionID}/resourceGroups/${resourceGroup.name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/probes/probe-lb`,
         },
     }],
 });
