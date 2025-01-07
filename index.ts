@@ -172,15 +172,15 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
                 "sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"\n" +
                 "sudo apt install -y docker-ce\n" +
                 "sudo mkdir /mnt/nextcloud\n" +
-                "sudo docker run --init --restart always --name nextcloud -d -p 80:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache" +
+                "sudo docker run --name nextcloud --init --restart always -d -p 80:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache" +
                 "# Mount Azure FileShare\n" +
-                "sudo mkdir /etc/smbcredentials\n" +
+                "sudo mkdir /etc/smbcredentials\n" /*+
                 "sudo bash -c 'echo \"username="+storageAccount.name.apply((name: string) => `${name}`)+"\" >> /etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred'\n" +
                 "sudo bash -c 'echo \"password="+primaryStorageKey.apply((key: string) => `${key}`)+"\" >> /etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred'\n" +
                 "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred\n" +
                 "sudo bash -c 'echo \"//"+storageAccount.name.apply((name: string) => `${name}`)+".file.core.windows.net/nextcloud /mnt/nextcloud cifs nofail,credentials=/etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\" >> /etc/fstab'\n" +
                 "sudo mount -t cifs //"+storageAccount.name.apply((name: string) => `${name}`)+".file.core.windows.net/nextcloud /mnt/nextcloud -o credentials=/etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred,dir_mode=0777,file_mode=0777,serverino,nosharesock,actimeo=30\n" +
-                "# Run Nextcloud Container\n"
+                "# Run Nextcloud Container\n"*/
             ).toString("base64"),
         },
         storageProfile: {
