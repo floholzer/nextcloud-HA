@@ -154,7 +154,7 @@ const init_script = "#!/bin/bash\n" +
     "sudo apt install -y docker-ce\n" +
     "sudo mkdir /mnt/nextcloud\n" +
     "# Run Nextcloud Container\n" +
-    "sudo docker run --init --restart always -d -p 80:80 -e TRUSTED_PROXIES='168.63.129.16' -e APACHE_DISABLE_REWRITE_IP=1 -e OVERWRITECLIURL='https://azure-nc-ha.ipv64.net' -e OVERWRITEPROTOCOL='https' -e FORWARDED_FOR_HEADERS='HTTP_X_FORWARDED_FOR' -e OVERWRITEHOST='azure-nc-ha.ipv64.net' -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache\n"+
+    "sudo docker run --init --restart always -d -p 80:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache\n"+
     "# Mount Azure FileShare\n" +
     "sudo mkdir /etc/smbcredentials\n" +
     "sudo bash -c 'echo \"username="+storageAccount.name+"\" >> /etc/smbcredentials/"+storageAccount.name+".cred'\n" +
