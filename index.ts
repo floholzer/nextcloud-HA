@@ -172,9 +172,9 @@ const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
                 "sudo add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"\n" +
                 "sudo apt install -y docker-ce\n" +
                 "sudo mkdir /mnt/nextcloud\n" +
-                "sudo docker run --name nextcloud --init --restart always -d -p 80:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache" +
+                "sudo docker run --name nextcloud --init --restart always -d -p 80:80 -v /mnt/nextcloud/nextcloud:/var/www/html -v /mnt/nextcloud/custom_apps:/var/www/html/custom_apps -v /mnt/nextcloud/config:/var/www/html/config -v /mnt/nextcloud/data:/var/www/html/data nextcloud:30.0.4-apache\n" +
                 "# Mount Azure FileShare\n" +
-                "sudo mkdir /etc/smbcredentials\n" /*+
+                "sudo mkdir /etc/smbcredentials\n"/*+
                 "sudo bash -c 'echo \"username="+storageAccount.name.apply((name: string) => `${name}`)+"\" >> /etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred'\n" +
                 "sudo bash -c 'echo \"password="+primaryStorageKey.apply((key: string) => `${key}`)+"\" >> /etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred'\n" +
                 "sudo chmod 600 /etc/smbcredentials/"+storageAccount.name.apply((name: string) => `${name}`)+".cred\n" +
