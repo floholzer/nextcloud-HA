@@ -1,6 +1,6 @@
 # Nextcloud Deployment with Pulumi and Azure
 
-This project automates the deployment of a Nextcloud instance on Azure using Pulumi. It sets up the necessary Azure resources, including a resource group, storage account, virtual network, network security group, load balancer, and a virtual machine scale set.
+This project automates the deployment of a Nextcloud instance on Azure using Pulumi. It sets up the necessary Azure resources, including a resource group, storage account, virtual network, network security group, public ip address, load balancer, and a virtual machine scale set.
 
 ## Prerequisites
 
