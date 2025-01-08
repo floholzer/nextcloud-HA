@@ -208,6 +208,7 @@ const script = pulumi.all([storageAccount.name, primaryStorageKey, publicIp.ipAd
         sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable" &&
         sudo apt install -y docker-ce &&
         sudo mkdir /mnt/nextcloud &&
+        sudo chmod -R 777 /mnt/nextcloud &&
         sudo chown -R nobody:nogroup /mnt/nextcloud &&
         sudo mkdir /etc/smbcredentials &&
         echo "Starting with mount" &&
