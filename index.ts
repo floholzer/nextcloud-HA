@@ -144,9 +144,6 @@ const loadBalancer = new azure_native.network.LoadBalancer(loadBalancerName, {
     }],
 });
 
-const storageAccountName = storageAccount.name.apply((name: string) => name);
-const primaryKey = primaryStorageKey.apply((key: string) => key);
-
 // 7. Virtual Machine Scale Set definieren
 const vmss = new azure_native.compute.VirtualMachineScaleSet("nextcloud-vmss", {
     location: resourceGroup.location,
